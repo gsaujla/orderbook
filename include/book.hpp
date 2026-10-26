@@ -2,6 +2,7 @@
 #include "order.hpp"
 #include <unordered_map>
 #include <map>
+#include <optional>
 using namespace std;
 
 
@@ -32,8 +33,8 @@ class Book
     public:
         void Add(Order order);
         void Cancel(Order order);
-        int64_t Best_Bid();
-        int64_t Best_Ask();
+        optional<int64_t> Best_Bid() const;
+        optional<int64_t> Best_Ask() const;
         
 };
 

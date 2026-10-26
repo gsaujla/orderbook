@@ -66,3 +66,13 @@ void Book::Cancel (Order order) {
     ordermap.erase(it);
 }
 
+
+optional<int64_t> Book::Best_Bid() const {
+    if (bid.empty()) return nullopt;
+    return bid.begin()->first;
+}
+
+optional<int64_t> Book::Best_Ask() const {
+    if (ask.empty()) return nullopt;
+    return ask.begin()->first;
+}
