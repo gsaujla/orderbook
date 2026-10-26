@@ -24,13 +24,45 @@ void Book::processAdd (map<int64_t, Level, Compare>& subbook, Order* order) {
 
 void Book::Add(Order order) {
     
-    if (ordermap.find(order.id) != ordermap.end()) return;
-    
-    ordermap[order.id] = order;
-    Order* ptr = &ordermap[order.id];
+    auto [it, inserted] = ordermap.try_emplace(order.id, order);
+    if (!inserted) return;
+    Order* ptr = &it->second;
 
-    if (order.side == Side::BUY) processAdd(bid, ptr);
+    if (ptr->side == Side::BUY) processAdd(bid, ptr);
     else processAdd(ask, ptr);
     
+}
+
+template <typename Compare>
+void Book::processCancel (map<int64_t, Level, Compare>& subbook, Order* order) {
+    auto it = subbook.find(order->price);
+    if (it == subbook.end()) return;
+    Level& lvl = it->second;
+
+    Order* behind = order->prev;
+    Order* after = order->next;
+
+    if (behind != nullptr) behind->next = after;
+    else lvl.front = after;
+
+    if (after != nullptr) after->prev = behind;
+    else lvl.back = behind;
+
+    lvl.size--;
+
+    if (lvl.size == 0) subbook.erase(it);
+
+
+}
+
+void Book::Cancel (Order order) {
+    auto it = ordermap.find(order.id);
+    if (it == ordermap.end()) return;
+    
+    Order* ptr = &it->second;
+    if (ptr->side == Side::BUY) processCancel(bid, ptr);
+    else processCancel(ask, ptr);
+    
+    ordermap.erase(it);
 }
 

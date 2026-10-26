@@ -27,7 +27,8 @@ class Book
     unordered_map<uint64_t, Order> ordermap;
     template <typename Compare>
     static void processAdd (map<int64_t, Level, Compare>& subbook, Order* order);
-
+    template <typename Compare>
+    static void processCancel (map<int64_t, Level, Compare>& subbook, Order* order);
     public:
         void Add(Order order);
         void Cancel(Order order);
