@@ -2,13 +2,9 @@
 
 #include <cstdint>
 
-enum struct Side {
-    SELL,
-    BUY
-};
+enum struct Side { SELL, BUY };
 
-struct Order
-{
+struct Order {
     uint64_t id;
     uint32_t qty;
     int64_t price;
@@ -16,7 +12,3 @@ struct Order
     Order* next = nullptr;
     Order* prev = nullptr;
 };
-
-
-
-

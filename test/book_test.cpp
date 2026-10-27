@@ -1,4 +1,5 @@
 #include "book.hpp"
+
 #include <gtest/gtest.h>
 
 namespace {
@@ -74,11 +75,11 @@ TEST(Book, CancelMiddleFrontBack) {
     book.Add(sell(3, 101));
     book.Add(sell(4, 102));
 
-    book.Cancel(2);   // middle
+    book.Cancel(2);  // middle
     EXPECT_EQ(book.Best_Ask(), 101);
-    book.Cancel(1);   // front
+    book.Cancel(1);  // front
     EXPECT_EQ(book.Best_Ask(), 101);
-    book.Cancel(3);   // back, last at 101
+    book.Cancel(3);  // back, last at 101
     EXPECT_EQ(book.Best_Ask(), 102);
 }
 
@@ -86,10 +87,10 @@ TEST(Book, CancelBackThenAddRelinks) {
     Book book;
     book.Add(buy(1, 100));
     book.Add(buy(2, 100));
-    book.Cancel(2);   // back moves to order 1
+    book.Cancel(2);  // back moves to order 1
     book.Add(buy(3, 100));
     book.Cancel(1);
-    EXPECT_EQ(book.Best_Bid(), 100);   // order 3 still there
+    EXPECT_EQ(book.Best_Bid(), 100);  // order 3 still there
     book.Cancel(3);
     EXPECT_FALSE(book.Best_Bid().has_value());
 }
@@ -115,7 +116,7 @@ TEST(Book, CancelTwiceIsNoop) {
 TEST(Book, DuplicateIdRejected) {
     Book book;
     book.Add(buy(1, 100));
-    book.Add(buy(1, 105));   // same id, ignored
+    book.Add(buy(1, 105));  // same id, ignored
     EXPECT_EQ(book.Best_Bid(), 100);
     book.Cancel(1);
     EXPECT_FALSE(book.Best_Bid().has_value());

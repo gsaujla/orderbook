@@ -26,6 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pinned so CI and local formatting agree; install the same version locally with
+      # `pip install clang-format==19.1.7`.
+      - name: Install clang-format
+        run: pip install clang-format==19.1.7
       - name: Check formatting
         run: |
           find include src test -name '*.hpp' -o -name '*.cpp' \

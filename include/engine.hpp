@@ -1,7 +1,7 @@
 #pragma once
-#include "book.hpp"
 #include <vector>
 
+#include "book.hpp"
 
 class Trade {
     uint64_t buyer_id;
@@ -11,13 +11,11 @@ class Trade {
     uint32_t qty;
 };
 
-
 class Engine {
     Book book;
     vector<Trade> trades;
 
-    public:
+public:
     void submit();
     void cancel();
 };
-
