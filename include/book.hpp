@@ -18,9 +18,6 @@ class Level {
     friend class Book;
 };
 
-//  bid, ask
-// l1, l2
-// umap price -> order <-> order <->
 class Book
 {
     map<int64_t, Level, greater<>> bid;
@@ -32,7 +29,7 @@ class Book
     static void processCancel (map<int64_t, Level, Compare>& subbook, Order* order);
     public:
         void Add(Order order);
-        void Cancel(Order order);
+        void Cancel(uint64_t id);
         optional<int64_t> Best_Bid() const;
         optional<int64_t> Best_Ask() const;
         

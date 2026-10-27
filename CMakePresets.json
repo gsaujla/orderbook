@@ -1,0 +1,39 @@
+{
+    "version": 6,
+    "configurePresets": [
+        {
+            "name": "debug-asan",
+            "displayName": "Debug + ASan/UBSan",
+            "binaryDir": "${sourceDir}/build/debug-asan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "ORDERBOOK_SANITIZE": "ON"
+            }
+        },
+        {
+            "name": "release",
+            "displayName": "Release -O3 -march=native",
+            "binaryDir": "${sourceDir}/build/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_CXX_FLAGS_RELEASE": "-O3 -march=native -DNDEBUG"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "debug-asan", "configurePreset": "debug-asan" },
+        { "name": "release", "configurePreset": "release" }
+    ],
+    "testPresets": [
+        {
+            "name": "debug-asan",
+            "configurePreset": "debug-asan",
+            "output": { "outputOnFailure": true }
+        },
+        {
+            "name": "release",
+            "configurePreset": "release",
+            "output": { "outputOnFailure": true }
+        }
+    ]
+}

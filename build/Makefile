@@ -65,6 +65,16 @@ CMAKE_BINARY_DIR = /Users/gurmeharsinghaujla/Desktop/dev/orderbook/build
 #=============================================================================
 # Targets provided globally by CMake.
 
+# Special rule for the target test
+test:
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running tests..."
+	/opt/homebrew/bin/ctest $(ARGS)
+.PHONY : test
+
+# Special rule for the target test
+test/fast: test
+.PHONY : test/fast
+
 # Special rule for the target edit_cache
 edit_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --cyan "Running CMake cache editor..."
@@ -136,12 +146,26 @@ bookexecutable/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bookexecutable.dir/build.make CMakeFiles/bookexecutable.dir/build
 .PHONY : bookexecutable/fast
 
+#=============================================================================
+# Target rules for targets named booktests
+
+# Build rule for target.
+booktests: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 booktests
+.PHONY : booktests
+
+# fast build rule for target.
+booktests/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/build
+.PHONY : booktests/fast
+
 src/book.o: src/book.cpp.o
 .PHONY : src/book.o
 
 # target to build an object file
 src/book.cpp.o:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bookexecutable.dir/build.make CMakeFiles/bookexecutable.dir/src/book.cpp.o
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/src/book.cpp.o
 .PHONY : src/book.cpp.o
 
 src/book.i: src/book.cpp.i
@@ -150,6 +174,7 @@ src/book.i: src/book.cpp.i
 # target to preprocess a source file
 src/book.cpp.i:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bookexecutable.dir/build.make CMakeFiles/bookexecutable.dir/src/book.cpp.i
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/src/book.cpp.i
 .PHONY : src/book.cpp.i
 
 src/book.s: src/book.cpp.s
@@ -158,6 +183,7 @@ src/book.s: src/book.cpp.s
 # target to generate assembly for a file
 src/book.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bookexecutable.dir/build.make CMakeFiles/bookexecutable.dir/src/book.cpp.s
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/src/book.cpp.s
 .PHONY : src/book.cpp.s
 
 src/main.o: src/main.cpp.o
@@ -184,6 +210,30 @@ src/main.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bookexecutable.dir/build.make CMakeFiles/bookexecutable.dir/src/main.cpp.s
 .PHONY : src/main.cpp.s
 
+test/book_test.o: test/book_test.cpp.o
+.PHONY : test/book_test.o
+
+# target to build an object file
+test/book_test.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/test/book_test.cpp.o
+.PHONY : test/book_test.cpp.o
+
+test/book_test.i: test/book_test.cpp.i
+.PHONY : test/book_test.i
+
+# target to preprocess a source file
+test/book_test.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/test/book_test.cpp.i
+.PHONY : test/book_test.cpp.i
+
+test/book_test.s: test/book_test.cpp.s
+.PHONY : test/book_test.s
+
+# target to generate assembly for a file
+test/book_test.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/booktests.dir/build.make CMakeFiles/booktests.dir/test/book_test.cpp.s
+.PHONY : test/book_test.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -193,13 +243,18 @@ help:
 	@echo "... codegen"
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
+	@echo "... test"
 	@echo "... bookexecutable"
+	@echo "... booktests"
 	@echo "... src/book.o"
 	@echo "... src/book.i"
 	@echo "... src/book.s"
 	@echo "... src/main.o"
 	@echo "... src/main.i"
 	@echo "... src/main.s"
+	@echo "... test/book_test.o"
+	@echo "... test/book_test.i"
+	@echo "... test/book_test.s"
 .PHONY : help
 
 

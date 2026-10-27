@@ -55,8 +55,8 @@ void Book::processCancel (map<int64_t, Level, Compare>& subbook, Order* order) {
 
 }
 
-void Book::Cancel (Order order) {
-    auto it = ordermap.find(order.id);
+void Book::Cancel (uint64_t id) {
+    auto it = ordermap.find(id);
     if (it == ordermap.end()) return;
     
     Order* ptr = &it->second;
