@@ -144,3 +144,116 @@ TEST(Book, ManyOrdersSurviveRehash) {
         if (i % 10 != 9) book.Cancel(i);
     EXPECT_FALSE(book.Best_Bid().has_value());
 }
+
+using Levels = std::vector<std::pair<int64_t, uint64_t>>;
+
+TEST(Depth, EmptyBook) {
+    Book book;
+    EXPECT_TRUE(book.Depth(Side::BUY, 5).empty());
+    EXPECT_TRUE(book.Depth(Side::SELL, 5).empty());
+}
+
+TEST(Depth, BestPriceFirstWithTotals) {
+    Book book;
+    book.Add(buy(1, 99, 10));
+    book.Add(buy(2, 100, 20));
+    book.Add(buy(3, 100, 5));
+    book.Add(buy(4, 98, 7));
+    book.Add(sell(5, 102, 3));
+    book.Add(sell(6, 101, 4));
+    EXPECT_EQ(book.Depth(Side::BUY, 10), (Levels{{100, 25}, {99, 10}, {98, 7}}));
+    EXPECT_EQ(book.Depth(Side::SELL, 10), (Levels{{101, 4}, {102, 3}}));
+}
+
+TEST(Depth, LimitsToN) {
+    Book book;
+    book.Add(sell(1, 101));
+    book.Add(sell(2, 102));
+    book.Add(sell(3, 103));
+    EXPECT_EQ(book.Depth(Side::SELL, 2), (Levels{{101, 10}, {102, 10}}));
+    EXPECT_TRUE(book.Depth(Side::SELL, 0).empty());
+}
+
+TEST(Depth, CancelSubtractsFromTotal) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    book.Add(buy(2, 100, 20));
+    book.Cancel(1);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 20}}));
+}
+
+TEST(Fill, PartialKeepsPlaceAndUpdatesTotal) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    book.Add(buy(2, 100, 20));
+    book.Fill(book.Front(Side::BUY), 4);
+    EXPECT_EQ(book.Front(Side::BUY)->id, 1u);
+    EXPECT_EQ(book.Front(Side::BUY)->qty, 6u);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 26}}));
+}
+
+TEST(Fill, PartialOnAskSide) {
+    Book book;
+    book.Add(sell(1, 101, 30));
+    book.Add(sell(2, 101, 40));
+    book.Fill(book.Front(Side::SELL), 5);
+    EXPECT_EQ(book.Front(Side::SELL)->id, 1u);
+    EXPECT_EQ(book.Depth(Side::SELL, 1), (Levels{{101, 65}}));
+}
+
+TEST(Fill, FullRemovesOrderAndNextMovesUp) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    book.Add(buy(2, 100, 20));
+    book.Fill(book.Front(Side::BUY), 10);
+    EXPECT_EQ(book.Front(Side::BUY)->id, 2u);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 20}}));
+    EXPECT_FALSE(book.Cancel(1));  // already gone
+}
+
+TEST(Fill, PartialThenFull) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    book.Add(buy(2, 100, 20));
+    book.Fill(book.Front(Side::BUY), 4);
+    book.Fill(book.Front(Side::BUY), 6);
+    EXPECT_EQ(book.Front(Side::BUY)->id, 2u);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 20}}));
+}
+
+TEST(Fill, LastOrderRemovesLevel) {
+    Book book;
+    book.Add(sell(1, 101, 10));
+    book.Add(sell(2, 102, 10));
+    book.Fill(book.Front(Side::SELL), 10);
+    EXPECT_EQ(book.Best_Ask(), 102);
+    EXPECT_EQ(book.Depth(Side::SELL, 5), (Levels{{102, 10}}));
+}
+
+TEST(Fill, CancelAfterPartialRemovesRemainingQty) {
+    Book book;
+    book.Add(sell(1, 101, 30));
+    book.Add(sell(2, 101, 40));
+    book.Fill(book.Front(Side::SELL), 5);
+    EXPECT_TRUE(book.Cancel(1));
+    EXPECT_EQ(book.Depth(Side::SELL, 1), (Levels{{101, 40}}));
+}
+
+TEST(Front, EmptySideIsNull) {
+    Book book;
+    book.Add(buy(1, 100));
+    EXPECT_EQ(book.Front(Side::SELL), nullptr);
+    EXPECT_EQ(book.Front(Side::BUY)->id, 1u);
+}
+
+TEST(Front, FifoWithinLevel) {
+    Book book;
+    book.Add(sell(1, 101));
+    book.Add(sell(2, 101));
+    book.Add(sell(3, 100));  // better price, arrives later
+    EXPECT_EQ(book.Front(Side::SELL)->id, 3u);
+    book.Fill(book.Front(Side::SELL), 10);
+    EXPECT_EQ(book.Front(Side::SELL)->id, 1u);
+    book.Fill(book.Front(Side::SELL), 10);
+    EXPECT_EQ(book.Front(Side::SELL)->id, 2u);
+}

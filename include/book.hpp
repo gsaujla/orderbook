@@ -2,6 +2,7 @@
 #include <map>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include "order.hpp"
 using namespace std;
@@ -10,9 +11,9 @@ class Level {
     Order* front = nullptr;
     Order* back = nullptr;
     int64_t size = 0;
-
+    uint64_t total_qty = 0;
 public:
-    Level(Order* f, Order* b, int64_t sz);
+    Level(Order* f, Order* b, int64_t sz, uint64_t qty);
 
     friend class Book;
 };
@@ -24,11 +25,16 @@ class Book {
     template <typename Compare>
     static void processAdd(map<int64_t, Level, Compare>& subbook, Order* order);
     template <typename Compare>
-    static void processCancel(map<int64_t, Level, Compare>& subbook, Order* order);
+    static bool processCancel(map<int64_t, Level, Compare>& subbook, Order* order);
+    template <typename Compare>
+    static vector<pair<int64_t, uint64_t>> processDepth(const map<int64_t, Level, Compare>& subbook, size_t n);
 
 public:
-    void Add(Order order);
-    void Cancel(uint64_t id);
+    bool Add(Order order);
+    bool Cancel(uint64_t id);
     optional<int64_t> Best_Bid() const;
     optional<int64_t> Best_Ask() const;
+    Order* Front(Side);
+    void Fill(Order* o, uint32_t qty);
+    vector<pair<int64_t, uint64_t>> Depth(Side s, size_t n) const;
 };
