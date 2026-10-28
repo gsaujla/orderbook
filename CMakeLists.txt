@@ -34,6 +34,10 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-add_executable(booktests test/book_test.cpp test/engine_test.cpp)
+add_executable(booktests test/book_test.cpp test/engine_test.cpp test/fuzz_test.cpp)
 target_link_libraries(booktests PRIVATE orderbook GTest::gtest_main)
 gtest_discover_tests(booktests)
+
+# Standalone fuzzer for long runs (e.g. 10M events); not part of ctest.
+add_executable(fuzz test/fuzz_main.cpp)
+target_link_libraries(fuzz PRIVATE orderbook)
