@@ -3,10 +3,7 @@
 
 #include "book.hpp"
 
-
-enum class OrderType {
-    Limit, Market
-};
+enum class OrderType { Limit, Market };
 
 struct NewOrder {
     uint64_t id;
@@ -29,8 +26,8 @@ class Engine {
     Book book;
     vector<Trade> trades;
 
-    uint32_t processMarketOrder(const NewOrder& freshorder);
-    uint32_t processLimitOrder(const NewOrder& freshorder);
+    uint32_t processOrder(const NewOrder& freshorder);
+
 public:
     uint32_t submit(const NewOrder& freshorder);
     void cancel();

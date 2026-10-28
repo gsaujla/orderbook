@@ -12,6 +12,7 @@ class Level {
     Order* back = nullptr;
     int64_t size = 0;
     uint64_t total_qty = 0;
+
 public:
     Level(Order* f, Order* b, int64_t sz, uint64_t qty);
 
@@ -27,7 +28,8 @@ class Book {
     template <typename Compare>
     static bool processCancel(map<int64_t, Level, Compare>& subbook, Order* order);
     template <typename Compare>
-    static vector<pair<int64_t, uint64_t>> processDepth(const map<int64_t, Level, Compare>& subbook, size_t n);
+    static vector<pair<int64_t, uint64_t>> processDepth(const map<int64_t, Level, Compare>& subbook,
+                                                        size_t n);
 
 public:
     bool Add(Order order);

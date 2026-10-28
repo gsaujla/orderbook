@@ -1,7 +1,9 @@
 #include "book.hpp"
+
 #include <cassert>
 
-Level::Level(Order* f, Order* b, int64_t sz, uint64_t qty) : front(f), back(b), size(sz), total_qty(qty) {}
+Level::Level(Order* f, Order* b, int64_t sz, uint64_t qty)
+    : front(f), back(b), size(sz), total_qty(qty) {}
 
 template <typename Compare>
 void Book::processAdd(map<int64_t, Level, Compare>& subbook, Order* order) {
@@ -65,7 +67,7 @@ bool Book::Cancel(uint64_t id) {
     Order* ptr = &it->second;
     bool output;
     if (ptr->side == Side::BUY)
-        output= processCancel(bid, ptr);
+        output = processCancel(bid, ptr);
     else
         output = processCancel(ask, ptr);
 
@@ -83,14 +85,13 @@ optional<int64_t> Book::Best_Ask() const {
     return ask.begin()->first;
 }
 
-
 Order* Book::Front(Side s) {
     if (s == Side::BUY) {
         if (bid.empty()) return nullptr;
         return bid.begin()->second.front;
-    } else if (ask.empty()) return nullptr;
+    } else if (ask.empty())
+        return nullptr;
     return ask.begin()->second.front;
-    
 }
 
 void Book::Fill(Order* o, uint32_t qty) {
@@ -107,15 +108,18 @@ void Book::Fill(Order* o, uint32_t qty) {
             it->second.total_qty -= qty;
         }
     } else if (o->qty == qty) {
-        if (o->side == Side::BUY) processCancel(bid, o);
-        else processCancel(ask, o);
+        if (o->side == Side::BUY)
+            processCancel(bid, o);
+        else
+            processCancel(ask, o);
         auto it = ordermap.find(o->id);
         ordermap.erase(it);
     }
 }
 
 template <typename Compare>
-vector<pair<int64_t, uint64_t>> Book::processDepth(const map<int64_t, Level, Compare>& subbook, size_t n) {
+vector<pair<int64_t, uint64_t>> Book::processDepth(const map<int64_t, Level, Compare>& subbook,
+                                                   size_t n) {
     vector<pair<int64_t, uint64_t>> levels;
     levels.reserve(min(n, subbook.size()));
     for (auto it = subbook.begin(); it != subbook.end() && levels.size() < n; it++) {
@@ -128,4 +132,3 @@ vector<pair<int64_t, uint64_t>> Book::Depth(Side s, size_t n) const {
     if (s == Side::BUY) return processDepth(bid, n);
     return processDepth(ask, n);
 }
-
