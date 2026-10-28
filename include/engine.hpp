@@ -30,5 +30,7 @@ class Engine {
 
 public:
     uint32_t submit(const NewOrder& freshorder);
-    void cancel();
+    bool cancel(uint64_t id);
+    const vector<Trade>& GetTrades() const;
+    const Book& GetBook() const;
 };

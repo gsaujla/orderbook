@@ -40,3 +40,15 @@ uint32_t Engine::processOrder(const NewOrder& freshorder) {
 uint32_t Engine::submit(const NewOrder& freshorder) {
     return processOrder(freshorder);
 }
+
+bool Engine::cancel(uint64_t id) {
+    return book.Cancel(id);
+}
+
+const vector<Trade>& Engine::GetTrades() const {
+    return trades;
+}
+
+const Book& Engine::GetBook() const {
+    return book;
+}

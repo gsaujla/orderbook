@@ -34,6 +34,6 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-add_executable(booktests test/book_test.cpp)
+add_executable(booktests test/book_test.cpp test/engine_test.cpp)
 target_link_libraries(booktests PRIVATE orderbook GTest::gtest_main)
 gtest_discover_tests(booktests)

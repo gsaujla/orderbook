@@ -39,4 +39,5 @@ public:
     Order* Front(Side);
     void Fill(Order* o, uint32_t qty);
     vector<pair<int64_t, uint64_t>> Depth(Side s, size_t n) const;
+    const Order* Front(Side) const;
 };

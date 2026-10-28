@@ -132,3 +132,12 @@ vector<pair<int64_t, uint64_t>> Book::Depth(Side s, size_t n) const {
     if (s == Side::BUY) return processDepth(bid, n);
     return processDepth(ask, n);
 }
+
+const Order* Book::Front(Side s) const {
+    if (s == Side::BUY) {
+        if (bid.empty()) return nullptr;
+        return bid.begin()->second.front;
+    } else if (ask.empty())
+        return nullptr;
+    return ask.begin()->second.front;
+}
