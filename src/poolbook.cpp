@@ -2,23 +2,16 @@
 
 #include <cassert>
 
-PoolBook::PoolBook(size_t capacity) : pool(capacity) {
+PoolBook::PoolBook(size_t capacity) : owned(make_unique<OrderPool>(capacity)), pool(owned.get()) {
     index.reserve(capacity);
 }
 
-Order* PoolBook::acquire() {
-    if (free_head != nullptr) {
-        Order* slot = free_head;
-        free_head = slot->next;
-        return slot;
-    }
-    if (used == pool.size()) return nullptr;
-    return &pool[used++];
+PoolBook::PoolBook(OrderPool& shared, size_t expected_orders) : pool(&shared) {
+    index.reserve(expected_orders);
 }
 
-void PoolBook::release(Order* slot) {
-    slot->next = free_head;
-    free_head = slot;
+PoolBook::~PoolBook() {
+    for (auto& [id, slot] : index) pool->release(slot);
 }
 
 template <typename Compare>
@@ -41,7 +34,7 @@ void PoolBook::processAdd(map<int64_t, Level, Compare>& subbook, Order* order) {
 bool PoolBook::Add(Order order) {
     assert(order.qty > 0);
     if (index.find(order.id) != index.end()) return false;
-    Order* ptr = acquire();
+    Order* ptr = pool->acquire();
     if (ptr == nullptr) return false;
     *ptr = order;
     index.emplace(order.id, ptr);
@@ -91,7 +84,7 @@ bool PoolBook::Cancel(uint64_t id) {
 
     if (output) {
         index.erase(it);
-        release(ptr);  // after processCancel: it still needed next/prev to unlink
+        pool->release(ptr);  // after processCancel: it still needed next/prev to unlink
     }
     return output;
 }
@@ -134,7 +127,7 @@ void PoolBook::Fill(Order* o, uint32_t qty) {
         else
             processCancel(ask, o);
         index.erase(o->id);
-        release(o);
+        pool->release(o);
     }
 }
 

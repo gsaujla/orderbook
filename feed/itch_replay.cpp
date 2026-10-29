@@ -3,7 +3,10 @@
 //
 //   ./build/release/itch_replay data/01302019.NASDAQ_ITCH50.gz
 //       [--symbols AAPL,MSFT,SPY] [--at 09:35:00,12:00:00,15:55:00]
-//       [--limit N] [--time] [--csv latency.csv]
+//       [--limit N] [--time] [--csv latency.csv] [--book map|pool] [--pool N]
+//
+// --book map replays into Book; --book pool into PoolBook, all stocks sharing one
+// OrderPool of N slots (default 4M).
 //
 // Exit code 0 only if the whole file replays with zero errors.
 
@@ -58,8 +61,11 @@ std::string hhmmss(uint64_t ns) {
 enum Kind { kAdd, kExec, kCancel, kDelete, kReplace, kKinds };
 const char* kKindName[kKinds] = {"add A/F", "exec E/C", "cancel X", "delete D", "replace U"};
 
+template <typename BookT>
 struct Driver : itch::Handler {
-    itch::Replayer r;
+    explicit Driver(size_t pool_capacity) : r(pool_capacity) {}
+
+    itch::BasicReplayer<BookT> r;
     std::vector<std::string> symbols;
     std::vector<uint64_t> at;  // snapshot times, ascending
     size_t next_at = 0;
@@ -125,7 +131,7 @@ struct Driver : itch::Handler {
 
     uint64_t crossedBooks() const {
         uint64_t n = 0;
-        r.forEachBook([&](uint16_t, const Book& b) {
+        r.forEachBook([&](uint16_t, const BookT& b) {
             auto bid = b.Best_Bid(), ask = b.Best_Ask();
             if (bid && ask && *bid >= *ask) n++;
         });
@@ -136,7 +142,7 @@ struct Driver : itch::Handler {
         std::printf("\n=== %s  (%llu resting orders, %llu crossed books) ===\n", hhmmss(t).c_str(),
                     (unsigned long long)r.counts().resting, (unsigned long long)crossedBooks());
         for (const std::string& s : symbols) {
-            const Book* b = r.bookFor(s);
+            const BookT* b = r.bookFor(s);
             if (!b) {
                 std::printf("%-6s (no orders yet)\n", s.c_str());
                 continue;
@@ -162,48 +168,32 @@ struct Driver : itch::Handler {
 
 }  // namespace
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::fprintf(stderr,
-                     "usage: %s FILE[.gz] [--symbols A,B] [--at HH:MM:SS,...] [--limit N] "
-                     "[--time] [--csv path]\n",
-                     argv[0]);
-        return 2;
-    }
-    std::string path = argv[1];
-    Driver d;
-    d.symbols = split("AAPL,MSFT,AMZN,SPY,QQQ");
+struct Options {
+    std::string path;
+    std::vector<std::string> symbols = split("AAPL,MSFT,AMZN,SPY,QQQ");
     std::vector<std::string> at = split("09:35:00,12:00:00,15:55:00");
     uint64_t limit = 0;
+    bool timing = false;
     std::string csv;
-    for (int i = 2; i < argc; i++) {
-        auto arg = [&] {
-            if (i + 1 >= argc) {
-                std::fprintf(stderr, "%s needs a value\n", argv[i]);
-                std::exit(2);
-            }
-            return std::string(argv[++i]);
-        };
-        if (!std::strcmp(argv[i], "--symbols"))
-            d.symbols = split(arg());
-        else if (!std::strcmp(argv[i], "--at"))
-            at = split(arg());
-        else if (!std::strcmp(argv[i], "--limit"))
-            limit = std::strtoull(arg().c_str(), nullptr, 10);
-        else if (!std::strcmp(argv[i], "--csv"))
-            csv = arg();
-        else if (!std::strcmp(argv[i], "--time"))
-            d.timing = true;
-        else {
-            std::fprintf(stderr, "unknown flag %s\n", argv[i]);
-            return 2;
-        }
-    }
-    for (const std::string& t : at) d.at.push_back(parseTime(t));
+    std::string book = "map";
+    size_t pool_capacity = size_t(1) << 22;
+};
+
+template <typename BookT>
+int run(const Options& opt) {
+    Driver<BookT> d(opt.pool_capacity);
+    d.symbols = opt.symbols;
+    d.timing = opt.timing;
+    for (const std::string& t : opt.at) d.at.push_back(parseTime(t));
     std::sort(d.at.begin(), d.at.end());
+    const uint64_t limit = opt.limit;
+    const std::string& csv = opt.csv;
+    std::printf("book: %s\n",
+                opt.book == "pool" ? "pool (PoolBook, shared OrderPool)" : "map (Book)");
 
     auto t0 = Clock::now();
-    itch::ReadStats rs = itch::readFile(path, d, [&] { return limit == 0 || d.messages < limit; });
+    itch::ReadStats rs =
+        itch::readFile(opt.path, d, [&] { return limit == 0 || limit > d.messages; });
     double secs = std::chrono::duration<double>(Clock::now() - t0).count();
 
     const itch::ReplayCounts& n = d.r.counts();
@@ -220,9 +210,15 @@ int main(int argc, char** argv) {
     std::printf("resting at end %llu, peak %llu, crossed books at end %llu\n",
                 (unsigned long long)n.resting, (unsigned long long)n.max_resting,
                 (unsigned long long)d.crossedBooks());
-    std::printf("errors: unknown ref %llu, overfill %llu, duplicate add %llu, zero shares %llu\n",
-                (unsigned long long)e.unknown_ref, (unsigned long long)e.overfill,
-                (unsigned long long)e.duplicate_add, (unsigned long long)e.zero_shares);
+    std::printf(
+        "errors: unknown ref %llu, overfill %llu, duplicate add %llu, zero shares %llu, "
+        "pool full %llu\n",
+        (unsigned long long)e.unknown_ref, (unsigned long long)e.overfill,
+        (unsigned long long)e.duplicate_add, (unsigned long long)e.zero_shares,
+        (unsigned long long)e.pool_full);
+    if (const OrderPool* p = d.r.orderPool())
+        std::printf("order pool: %zu slots, %zu ever used, %zu live at end\n", p->Capacity(),
+                    p->HighWater(), p->Live());
 
     if (d.timing) {
         std::printf("\nbook update latency, ns (excludes parsing; includes ~42 ns clock tick):\n");
@@ -250,4 +246,47 @@ int main(int argc, char** argv) {
     if (rs.truncated && limit == 0) std::printf("ERROR: file ends mid-message\n");
     std::printf("%s\n", ok ? "OK: replay clean" : "FAILED");
     return ok ? 0 : 1;
+}
+
+int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::fprintf(stderr,
+                     "usage: %s FILE[.gz] [--symbols A,B] [--at HH:MM:SS,...] [--limit N] "
+                     "[--time] [--csv path] [--book map|pool] [--pool N]\n",
+                     argv[0]);
+        return 2;
+    }
+    Options opt;
+    opt.path = argv[1];
+    for (int i = 2; i < argc; i++) {
+        auto arg = [&] {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "%s needs a value\n", argv[i]);
+                std::exit(2);
+            }
+            return std::string(argv[++i]);
+        };
+        if (!std::strcmp(argv[i], "--symbols"))
+            opt.symbols = split(arg());
+        else if (!std::strcmp(argv[i], "--at"))
+            opt.at = split(arg());
+        else if (!std::strcmp(argv[i], "--limit"))
+            opt.limit = std::strtoull(arg().c_str(), nullptr, 10);
+        else if (!std::strcmp(argv[i], "--csv"))
+            opt.csv = arg();
+        else if (!std::strcmp(argv[i], "--time"))
+            opt.timing = true;
+        else if (!std::strcmp(argv[i], "--book"))
+            opt.book = arg();
+        else if (!std::strcmp(argv[i], "--pool"))
+            opt.pool_capacity = std::strtoull(arg().c_str(), nullptr, 10);
+        else {
+            std::fprintf(stderr, "unknown flag %s\n", argv[i]);
+            return 2;
+        }
+    }
+    if (opt.book == "pool") return run<PoolBook>(opt);
+    if (opt.book == "map") return run<Book>(opt);
+    std::fprintf(stderr, "--book must be map or pool\n");
+    return 2;
 }

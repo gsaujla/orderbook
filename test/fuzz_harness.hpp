@@ -1,14 +1,16 @@
 #pragma once
-// Drives Engine and ReferenceEngine with the same seeded random events and checks
-// after every event that they agree. Shared by the gtest fuzz tests and the
-// standalone `fuzz` binary used for long runs.
+// Drives an engine (Engine or PoolEngine) and ReferenceEngine with the same seeded random events
+// and checks after every event that they agree. Shared by the gtest fuzz tests and the standalone
+// `fuzz` binary used for long runs.
 
 #include <cstdint>
 #include <cstdio>
 #include <deque>
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "engine.hpp"
@@ -19,7 +21,17 @@ namespace fuzz {
 
 struct Config : synth::Config {
     uint64_t events = 100000;
+    size_t pool_capacity = 1 << 20;  // PoolEngine only; more than the most orders ever resting
 };
+
+// Engine (map book) takes no arguments; PoolEngine takes its pool capacity.
+template <typename E>
+std::unique_ptr<E> makeEngine(size_t pool_capacity) {
+    if constexpr (std::is_same_v<E, PoolEngine>)
+        return std::make_unique<E>(pool_capacity);
+    else
+        return std::make_unique<E>();
+}
 
 using synth::Event;
 
@@ -56,9 +68,11 @@ struct Result {
     std::string error;  // filled on divergence
 };
 
-inline Result run(const Config& cfg) {
+template <typename E = Engine>
+Result run(const Config& cfg) {
     synth::Generator gen(cfg);
-    Engine engine;
+    std::unique_ptr<E> engine_ptr = makeEngine<E>(cfg.pool_capacity);
+    E& engine = *engine_ptr;
     ReferenceEngine ref;
     Result res;
 
@@ -109,7 +123,7 @@ inline Result run(const Config& cfg) {
                                    ", reference " + describe(rt[t]));
 
         // Full depth on both sides.
-        const Book& book = engine.GetBook();
+        const auto& book = engine.GetBook();
         const size_t all = std::numeric_limits<size_t>::max();
         for (Side s : {Side::BUY, Side::SELL}) {
             auto got = book.Depth(s, all);

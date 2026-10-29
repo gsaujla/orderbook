@@ -1,5 +1,6 @@
 #pragma once
-// Replays ITCH 5.0 messages into one Book per stock.
+// Replays ITCH 5.0 messages into one book per stock. BookT is Book (Replayer) or
+// PoolBook (PoolReplayer); with PoolBook every stock's book shares one OrderPool.
 //
 // NASDAQ has already done the matching, so this calls Book directly (Add / Find /
 // Fill / Cancel) and never Engine: every A/F message is a resting limit order, and
@@ -13,17 +14,19 @@
 //   U      replace        -> side from old order; Cancel(old) then Add(new)
 //
 // Anything that does not fit the book (unknown ref, more shares than remain, duplicate
-// ref, zero shares) is counted in `errors` and skipped. A clean day has all zeros.
+// ref, zero shares, pool full) is counted in `errors` and skipped. A clean day has all zeros.
 
 #include <cstdint>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
 #include "book.hpp"
 #include "itch_parser.hpp"
+#include "poolbook.hpp"
 
 namespace itch {
 
@@ -32,7 +35,10 @@ struct ReplayErrors {
     uint64_t overfill = 0;       // E/C/X for more shares than the order has left
     uint64_t duplicate_add = 0;  // A/F/U new ref already resting
     uint64_t zero_shares = 0;    // A/F/U with 0 shares, or E/C/X with 0 shares
-    uint64_t total() const { return unknown_ref + overfill + duplicate_add + zero_shares; }
+    uint64_t pool_full = 0;      // A/F/U rejected because the OrderPool has no free slot
+    uint64_t total() const {
+        return unknown_ref + overfill + duplicate_add + zero_shares + pool_full;
+    }
 };
 
 struct ReplayCounts {
@@ -42,9 +48,14 @@ struct ReplayCounts {
     uint64_t max_resting = 0;
 };
 
-class Replayer : public Handler {
+template <typename BookT>
+class BasicReplayer : public Handler {
 public:
-    Replayer() : books(65536) {}
+    // pool_capacity is used only by PoolBook. The full 2019-01-30 day peaks at 1.74M
+    // resting orders, so the 4M default leaves room.
+    explicit BasicReplayer(size_t pool_capacity = size_t(1) << 22) : books(65536) {
+        if constexpr (kPooled) pool = std::make_unique<OrderPool>(pool_capacity);
+    }
 
     void onStockDirectory(const StockDirectory& m) {
         std::string s(m.stock.view());
@@ -57,8 +68,9 @@ public:
             err.zero_shares++;
             return;
         }
-        if (!book(m.h.locate).Add(Order{m.ref, m.shares, m.price, m.side})) {
-            err.duplicate_add++;
+        BookT& b = book(m.h.locate);
+        if (!b.Add(Order{m.ref, m.shares, m.price, m.side})) {
+            addFailed(b, m.ref);
             return;
         }
         n.adds++;
@@ -82,7 +94,7 @@ public:
     }
 
     void onReplace(const Replace& m) {
-        Book& b = book(m.h.locate);
+        BookT& b = book(m.h.locate);
         const Order* old = b.Find(m.old_ref);
         if (!old) {
             err.unknown_ref++;
@@ -96,7 +108,7 @@ public:
             return;
         }
         if (!b.Add(Order{m.new_ref, m.shares, m.price, side})) {
-            err.duplicate_add++;
+            addFailed(b, m.new_ref);
             return;
         }
         n.replaces++;
@@ -109,8 +121,8 @@ public:
     const ReplayCounts& counts() const { return n; }
 
     // nullptr if no order for this locate has been seen.
-    const Book* bookFor(uint16_t locate) const { return books[locate].get(); }
-    const Book* bookFor(std::string_view symbol) const {
+    const BookT* bookFor(uint16_t locate) const { return books[locate].get(); }
+    const BookT* bookFor(std::string_view symbol) const {
         auto it = locates.find(std::string(symbol));
         return it == locates.end() ? nullptr : bookFor(it->second);
     }
@@ -126,18 +138,37 @@ public:
             if (books[i]) f(uint16_t(i), *books[i]);
     }
 
+    // nullptr unless BookT is PoolBook.
+    const OrderPool* orderPool() const { return pool.get(); }
+
 private:
+    static constexpr bool kPooled = std::is_same_v<BookT, PoolBook>;
+
+    std::unique_ptr<OrderPool> pool;  // declared before books: books release into it on destruction
     // Indexed by stock locate (16 bits). Allocated on first use.
-    std::vector<std::unique_ptr<Book>> books;
+    std::vector<std::unique_ptr<BookT>> books;
     std::unordered_map<uint16_t, std::string> names;
     std::unordered_map<std::string, uint16_t> locates;
     ReplayErrors err;
     ReplayCounts n;
 
-    Book& book(uint16_t locate) {
+    BookT& book(uint16_t locate) {
         auto& b = books[locate];
-        if (!b) b = std::make_unique<Book>();
+        if (!b) {
+            if constexpr (kPooled)
+                b = std::make_unique<BookT>(*pool);
+            else
+                b = std::make_unique<BookT>();
+        }
         return *b;
+    }
+
+    // Add returns false for a duplicate ref, or (PoolBook) when the pool is full.
+    void addFailed(const BookT& b, uint64_t ref) {
+        if (b.Find(ref))
+            err.duplicate_add++;
+        else
+            err.pool_full++;
     }
 
     void rested() {
@@ -148,7 +179,7 @@ private:
     // Shared by E/C (execution) and X (partial cancel): take shares off a resting order.
     // Returns true if applied.
     bool reduce(uint16_t locate, uint64_t ref, uint32_t shares) {
-        Book& b = book(locate);
+        BookT& b = book(locate);
         Order* o = b.Find(ref);
         if (!o) {
             err.unknown_ref++;
@@ -175,5 +206,8 @@ private:
         }
     }
 };
+
+using Replayer = BasicReplayer<Book>;
+using PoolReplayer = BasicReplayer<PoolBook>;
 
 }  // namespace itch

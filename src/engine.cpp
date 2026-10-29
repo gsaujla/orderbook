@@ -1,6 +1,7 @@
 #include "engine.hpp"
 
-uint32_t Engine::processOrder(const NewOrder& freshorder) {
+template <typename BookT>
+uint32_t BasicEngine<BookT>::processOrder(const NewOrder& freshorder) {
     OrderType ot = freshorder.type;
     uint32_t qty = freshorder.qty;
     Side opposite = (freshorder.side == Side::BUY) ? Side::SELL : Side::BUY;
@@ -37,22 +38,30 @@ uint32_t Engine::processOrder(const NewOrder& freshorder) {
     return qty - completed;
 }
 
-uint32_t Engine::submit(const NewOrder& freshorder) {
+template <typename BookT>
+uint32_t BasicEngine<BookT>::submit(const NewOrder& freshorder) {
     return processOrder(freshorder);
 }
 
-bool Engine::cancel(uint64_t id) {
+template <typename BookT>
+bool BasicEngine<BookT>::cancel(uint64_t id) {
     return book.Cancel(id);
 }
 
-const vector<Trade>& Engine::GetTrades() const {
+template <typename BookT>
+const vector<Trade>& BasicEngine<BookT>::GetTrades() const {
     return trades;
 }
 
-const Book& Engine::GetBook() const {
+template <typename BookT>
+const BookT& BasicEngine<BookT>::GetBook() const {
     return book;
 }
 
-void Engine::ClearTrades() {
+template <typename BookT>
+void BasicEngine<BookT>::ClearTrades() {
     trades.clear();
 }
+
+template class BasicEngine<Book>;
+template class BasicEngine<PoolBook>;

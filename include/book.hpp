@@ -7,7 +7,6 @@
 #include "level.hpp"
 using namespace std;
 
-
 class Book {
     map<int64_t, Level, greater<>> bid;
     map<int64_t, Level, less<>> ask;

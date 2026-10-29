@@ -122,3 +122,21 @@ TEST(PoolBook, MatchesBookOnRandomStream) {
         ASSERT_EQ(fb ? fb->id : 0, rb ? rb->id : 0) << "step " << step;
     }
 }
+
+TEST(PoolBook, SharedPoolAcrossBooks) {
+    OrderPool pool(3);
+    {
+        PoolBook a(pool), b(pool);
+        EXPECT_TRUE(a.Add({1, 10, 50, Side::BUY}));
+        EXPECT_TRUE(b.Add({1, 10, 60, Side::SELL}));  // ids are per book
+        EXPECT_TRUE(b.Add({2, 10, 61, Side::SELL}));
+        EXPECT_FALSE(a.Add({3, 10, 49, Side::BUY}));  // pool exhausted by both books
+        EXPECT_EQ(pool.Live(), 3u);
+        EXPECT_TRUE(b.Cancel(2));
+        EXPECT_TRUE(a.Add({3, 10, 49, Side::BUY}));  // b's freed slot goes to a
+        EXPECT_EQ(a.Depth(Side::BUY, 5), (Levels{{50, 10}, {49, 10}}));
+    }
+    EXPECT_EQ(pool.Live(), 0u);  // destroyed books return their resting orders
+    PoolBook c(pool);
+    for (uint64_t i = 0; i < 3; i++) EXPECT_TRUE(c.Add({i, 1, 50, Side::BUY}));
+}

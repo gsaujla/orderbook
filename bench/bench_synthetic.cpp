@@ -1,9 +1,12 @@
 // Per-message latency and throughput of Engine on the synthetic event stream.
 //
 //   ./build/release/bench_synthetic [--events N] [--warmup W] [--runs R] [--seed S]
-//                                   [--csv latency.csv]
+//                                   [--csv latency.csv] [--book map|pool] [--pool N]
 //
-// Each run replays the same pre-generated events into a fresh Engine:
+// --book picks the book under test: map (Book: std::map levels + unordered_map of
+// orders) or pool (PoolBook: same levels, orders in a preallocated OrderPool of N slots).
+//
+// Each run replays the same pre-generated events into a fresh engine:
 //   1. latency pass:    warm-up untimed, then every event timed on its own
 //   2. throughput pass: warm-up untimed, then the whole block timed once (no per-event timer)
 // Reported numbers are the median across runs.
@@ -13,7 +16,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "engine.hpp"
@@ -37,7 +42,16 @@ Kind kindOf(const synth::Event& e) {
     return e.order.type == OrderType::Market ? kMarket : kLimit;
 }
 
-inline void apply(Engine& e, const synth::Event& ev) {
+template <typename E>
+std::unique_ptr<E> makeEngine(size_t pool_capacity) {
+    if constexpr (std::is_same_v<E, PoolEngine>)
+        return std::make_unique<E>(pool_capacity);
+    else
+        return std::make_unique<E>();
+}
+
+template <typename E>
+inline void apply(E& e, const synth::Event& ev) {
     if (ev.kind == synth::Event::Submit)
         e.submit(ev.order);
     else
@@ -70,11 +84,13 @@ struct RunResult {
     double msgs_per_sec = 0;
 };
 
-RunResult runOnce(const std::vector<synth::Event>& events, size_t warmup) {
+template <typename E>
+RunResult runOnce(const std::vector<synth::Event>& events, size_t warmup, size_t pool_capacity) {
     RunResult r;
 
     {  // latency pass
-        Engine e;
+        auto ep = makeEngine<E>(pool_capacity);
+        E& e = *ep;
         for (size_t i = 0; i < warmup; i++) {
             apply(e, events[i]);
             e.ClearTrades();
@@ -92,7 +108,8 @@ RunResult runOnce(const std::vector<synth::Event>& events, size_t warmup) {
     }
 
     {  // throughput pass
-        Engine e;
+        auto ep = makeEngine<E>(pool_capacity);
+        E& e = *ep;
         for (size_t i = 0; i < warmup; i++) {
             apply(e, events[i]);
             e.ClearTrades();
@@ -144,6 +161,8 @@ int main(int argc, char** argv) {
     size_t events = 4000000, warmup = 1000000;
     int runs = 5;
     std::string csv;
+    std::string book = "map";
+    size_t pool_capacity = 1 << 20;
     for (int i = 1; i + 1 < argc; i += 2) {
         if (!std::strcmp(argv[i], "--events"))
             events = std::strtoull(argv[i + 1], nullptr, 10);
@@ -155,12 +174,21 @@ int main(int argc, char** argv) {
             cfg.seed = std::strtoull(argv[i + 1], nullptr, 10);
         else if (!std::strcmp(argv[i], "--csv"))
             csv = argv[i + 1];
+        else if (!std::strcmp(argv[i], "--book"))
+            book = argv[i + 1];
+        else if (!std::strcmp(argv[i], "--pool"))
+            pool_capacity = std::strtoull(argv[i + 1], nullptr, 10);
         else {
             std::fprintf(stderr, "unknown flag %s\n", argv[i]);
             return 2;
         }
     }
 
+    if (book != "map" && book != "pool") {
+        std::fprintf(stderr, "--book must be map or pool\n");
+        return 2;
+    }
+    std::printf("book: %s\n", book == "pool" ? "pool (PoolBook)" : "map (Book)");
     std::printf("generating %zu events (%zu warm-up), seed %llu...\n", warmup + events, warmup,
                 (unsigned long long)cfg.seed);
     std::vector<synth::Event> evs = generate(cfg, warmup + events);
@@ -172,7 +200,8 @@ int main(int argc, char** argv) {
 
     std::vector<RunResult> results;
     for (int r = 0; r < runs; r++) {
-        results.push_back(runOnce(evs, warmup));
+        results.push_back(book == "pool" ? runOnce<PoolEngine>(evs, warmup, pool_capacity)
+                                         : runOnce<Engine>(evs, warmup, pool_capacity));
         std::printf("run %d: %.2f M msg/s, p50 %llu ns, p99 %llu ns\n", r + 1,
                     results.back().msgs_per_sec / 1e6,
                     (unsigned long long)results.back().all.percentile(50),

@@ -81,7 +81,7 @@ resolution), pinned to one core with `taskset`. See [Not controlled](#not-contro
 
 Machine: Apple M5 (4 performance + 6 efficiency cores), 16 GB, macOS 26.6.2.
 Compiler: Apple clang 21.0.0, `-std=c++20 -O3 -march=native -DNDEBUG` (CMake preset
-`release`). Commit: `11e5551` plus uncommitted M3 changes. Seed 1.
+`release`). Commit: `4826341`. Seed 1.
 
 Median of 5 runs, 4M measured events after 1M warm-up. Latency includes timer
 overhead.
