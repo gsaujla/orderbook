@@ -52,3 +52,21 @@ target_link_libraries(fuzz PRIVATE synthgen)
 add_executable(bench_synthetic bench/bench_synthetic.cpp)
 target_include_directories(bench_synthetic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/bench)
 target_link_libraries(bench_synthetic PRIVATE orderbook synthgen)
+
+# ITCH 5.0 parser (header-only); zlib lets it read the .gz sample files directly.
+find_package(ZLIB REQUIRED)
+add_library(itch INTERFACE)
+target_include_directories(itch INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/feed)
+target_link_libraries(itch INTERFACE ZLIB::ZLIB)
+target_link_libraries(booktests PRIVATE itch)
+target_sources(booktests PRIVATE test/itch_test.cpp)
+
+# Parse a real ITCH file and print message counts (no book).
+add_executable(itch_stats feed/itch_stats.cpp)
+target_link_libraries(itch_stats PRIVATE orderbook itch)
+target_sources(booktests PRIVATE test/itch_replay_test.cpp)
+
+# Replay a full ITCH day into per-stock books, with snapshots and optional timing.
+add_executable(itch_replay feed/itch_replay.cpp)
+target_include_directories(itch_replay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/bench)
+target_link_libraries(itch_replay PRIVATE orderbook itch)

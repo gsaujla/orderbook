@@ -2,7 +2,7 @@
 
 A single-threaded limit order book and matching engine in C++20. It supports limit and
 market orders, matches by price-time priority, and is checked against a naive
-reference implementation with a seeded fuzzer. Next up is replaying real NASDAQ
+reference implementation with a seeded fuzzer. It replays a full day of real NASDAQ
 ITCH 5.0 data.
 
 ## Status
@@ -13,7 +13,7 @@ ITCH 5.0 data.
 | M1 Correct book: add, cancel, limit and market orders, partial fills, trades | Done (modify pending) |
 | M2 Reference book + fuzzing | Done: 10M events per seed, no divergence |
 | M3 Measurement | Done (macOS numbers; Linux + `rdtsc` planned) |
-| M4 ITCH 5.0 replay | Next |
+| M4 ITCH 5.0 replay | Done: full day (368M messages), zero errors |
 | M5 Flat price array + order pool | Planned |
 
 ## Performance
@@ -35,6 +35,31 @@ message. So the p50 values mean "under one tick", and the throughput figure is t
 precise one. The book in this workload is small (about 500 orders) and fits in cache,
 so these are best-case numbers. See [docs/methodology.md](docs/methodology.md) for the
 full setup, the max latencies, and what is not controlled.
+
+### Real data: NASDAQ ITCH 5.0, 30 Jan 2019
+
+A full-day replay of 368M messages into about 8,700 per-stock books, with up to 1.74M
+resting orders at once. Errors: **0**. Every order is gone by the end of the day, as
+it should be, and no book is ever crossed.
+
+Book-update latency only (parsing excluded), same machine and caveats as above:
+
+| Message | p50 | p99 | p99.9 | p99.99 |
+|---|---|---|---|---|
+| all | 125 ns | 879 ns | 1.3 µs | 6.4 µs |
+| add | 125 ns | 591 ns | 927 ns | 6.3 µs |
+| execute | 125 ns | 927 ns | 1.3 µs | 6.1 µs |
+| delete | 125 ns | 879 ns | 1.3 µs | 6.3 µs |
+| replace | 295 ns | 1.2 µs | 1.8 µs | 7.8 µs |
+
+That is about 3× slower at p50 and 10× slower at p99 than the synthetic workload: real
+book state does not fit in cache. Maxima reach a few ms, probably hash-map rehashes of
+large books (not yet confirmed); removing those is an M5 goal.
+
+```sh
+tools/download_itch_sample.sh          # about 4.8 GB into data/, resumable
+./build/release/itch_replay data/01302019.NASDAQ_ITCH50.gz --time
+```
 
 ## Design
 
@@ -110,17 +135,16 @@ clang-format -i include/*.hpp src/*.cpp test/*.cpp test/*.hpp bench/* feed/*
 include/   order.hpp, book.hpp, engine.hpp, events.hpp
 src/       book.cpp, engine.cpp, main.cpp
 feed/      synthetic_gen.hpp           seeded event generator (fuzz + bench)
+           itch_parser/reader/replay   ITCH 5.0 decoding and per-stock replay
+           itch_stats.cpp, itch_replay.cpp
 test/      unit tests, reference_book.hpp, fuzz harness + runner
 bench/     bench_synthetic.cpp, histogram.hpp
-tools/     plot_latency.py
+tools/     plot_latency.py, download_itch_sample.sh
 docs/      methodology.md
 ```
 
 ## Roadmap
 
-- **M4:** ITCH 5.0 parser (add, add with MPID, executed, executed with price, cancel,
-  delete, replace), per-stock books, a full-day replay with snapshots, and a replay
-  benchmark.
 - **M5:** a flat tick-indexed price array plus a pre-allocated order pool, with no
   heap allocation on the hot path, and before/after latency tables.
 - **Benchmarks on Linux x86** with `rdtsc` and core pinning, for nanosecond-accurate

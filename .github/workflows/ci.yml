@@ -32,5 +32,5 @@ jobs:
         run: pip install clang-format==19.1.7
       - name: Check formatting
         run: |
-          find include src test -name '*.hpp' -o -name '*.cpp' \
+          find include src test feed bench -name '*.hpp' -o -name '*.cpp' \
             | xargs clang-format --dry-run --Werror
