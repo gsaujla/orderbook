@@ -141,3 +141,13 @@ const Order* Book::Front(Side s) const {
         return nullptr;
     return ask.begin()->second.front;
 }
+
+Order* Book::Find(uint64_t id) {
+    auto it = ordermap.find(id);
+    return (it == ordermap.end()) ? nullptr : &it->second;
+}
+
+const Order* Book::Find(uint64_t id) const {
+    auto it = ordermap.find(id);
+    return (it == ordermap.end()) ? nullptr : &it->second;
+}

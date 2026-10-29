@@ -257,3 +257,52 @@ TEST(Front, FifoWithinLevel) {
     book.Fill(book.Front(Side::SELL), 10);
     EXPECT_EQ(book.Front(Side::SELL)->id, 2u);
 }
+
+TEST(Find, MissingIdIsNull) {
+    Book book;
+    EXPECT_EQ(book.Find(1), nullptr);
+    book.Add(buy(1, 100));
+    EXPECT_EQ(book.Find(2), nullptr);
+}
+
+TEST(Find, ReturnsTheRestingOrder) {
+    Book book;
+    book.Add(sell(7, 101, 30));
+    Order* o = book.Find(7);
+    ASSERT_NE(o, nullptr);
+    EXPECT_EQ(o->id, 7u);
+    EXPECT_EQ(o->price, 101);
+    EXPECT_EQ(o->qty, 30u);
+    EXPECT_EQ(o->side, Side::SELL);
+    EXPECT_EQ(o, book.Front(Side::SELL));  // same object, not a copy
+}
+
+TEST(Find, FillThroughFoundPointer) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    book.Add(buy(2, 100, 20));
+    book.Fill(book.Find(2), 5);  // fill an order that is not at the front
+    EXPECT_EQ(book.Find(2)->qty, 15u);
+    EXPECT_EQ(book.Front(Side::BUY)->id, 1u);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 25}}));
+    book.Fill(book.Find(2), 15);
+    EXPECT_EQ(book.Find(2), nullptr);
+    EXPECT_EQ(book.Depth(Side::BUY, 1), (Levels{{100, 10}}));
+}
+
+TEST(Find, GoneAfterCancel) {
+    Book book;
+    book.Add(buy(1, 100));
+    book.Cancel(1);
+    EXPECT_EQ(book.Find(1), nullptr);
+}
+
+TEST(Find, ConstOverload) {
+    Book book;
+    book.Add(buy(1, 100, 10));
+    const Book& cb = book;
+    const Order* o = cb.Find(1);
+    ASSERT_NE(o, nullptr);
+    EXPECT_EQ(o->qty, 10u);
+    EXPECT_EQ(cb.Find(2), nullptr);
+}
