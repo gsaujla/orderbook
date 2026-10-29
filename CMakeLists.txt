@@ -41,3 +41,14 @@ gtest_discover_tests(booktests)
 # Standalone fuzzer for long runs (e.g. 10M events); not part of ctest.
 add_executable(fuzz test/fuzz_main.cpp)
 target_link_libraries(fuzz PRIVATE orderbook)
+
+# Synthetic event generator, shared by the fuzzer and benchmarks.
+add_library(synthgen INTERFACE)
+target_include_directories(synthgen INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/feed)
+target_link_libraries(booktests PRIVATE synthgen)
+target_link_libraries(fuzz PRIVATE synthgen)
+
+# Latency / throughput benchmark. Meaningful numbers only from the release preset.
+add_executable(bench_synthetic bench/bench_synthetic.cpp)
+target_include_directories(bench_synthetic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/bench)
+target_link_libraries(bench_synthetic PRIVATE orderbook synthgen)

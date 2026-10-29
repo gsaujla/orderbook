@@ -52,3 +52,7 @@ const vector<Trade>& Engine::GetTrades() const {
 const Book& Engine::GetBook() const {
     return book;
 }
+
+void Engine::ClearTrades() {
+    trades.clear();
+}
