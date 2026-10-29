@@ -15,6 +15,7 @@ endif()
 # Core book/engine code, shared by the executable, tests and (later) benchmarks.
 add_library(orderbook
     src/book.cpp
+    src/poolbook.cpp
     src/engine.cpp
 )
 target_include_directories(orderbook PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -34,7 +35,7 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 include(GoogleTest)
 
-add_executable(booktests test/book_test.cpp test/engine_test.cpp test/fuzz_test.cpp)
+add_executable(booktests test/book_test.cpp test/poolbook_test.cpp test/engine_test.cpp test/fuzz_test.cpp)
 target_link_libraries(booktests PRIVATE orderbook GTest::gtest_main)
 gtest_discover_tests(booktests)
 

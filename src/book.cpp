@@ -2,9 +2,6 @@
 
 #include <cassert>
 
-Level::Level(Order* f, Order* b, int64_t sz, uint64_t qty)
-    : front(f), back(b), size(sz), total_qty(qty) {}
-
 template <typename Compare>
 void Book::processAdd(map<int64_t, Level, Compare>& subbook, Order* order) {
     order->next = nullptr;

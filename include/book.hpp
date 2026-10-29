@@ -4,20 +4,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "order.hpp"
+#include "level.hpp"
 using namespace std;
 
-class Level {
-    Order* front = nullptr;
-    Order* back = nullptr;
-    int64_t size = 0;
-    uint64_t total_qty = 0;
-
-public:
-    Level(Order* f, Order* b, int64_t sz, uint64_t qty);
-
-    friend class Book;
-};
 
 class Book {
     map<int64_t, Level, greater<>> bid;
